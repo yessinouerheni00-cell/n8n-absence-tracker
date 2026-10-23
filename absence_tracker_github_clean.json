@@ -1,0 +1,261 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "44ff9b49-1b57-489e-8e2a-7d89fae94f67",
+      "name": "Telegram Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst message = $input.first().json.message;\nconst text = (message?.text || \"\").trim();\nconst parts = text.split(/\\s+/);\n\nconst command = (parts[0] || \"\").toLowerCase();\nconst subject = (parts[1] || \"\").toLowerCase();\nconst hours = Number.parseFloat(parts[2]);\n\nreturn [{\n  json: {\n    command,\n    subject,\n    hours: Number.isFinite(hours) && hours > 0 ? hours : 1,\n    chatId: message.chat.id,\n    date: new Date().toISOString().slice(0, 10)\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "78c6229f-39d2-4e45-865c-7da1e1323c71",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "0eb70830-d5f6-4a7a-9210-dc9e3a48ba3d",
+              "leftValue": "={{ $json.command }}",
+              "rightValue": "/abs",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "eed5b0b5-b112-4821-9590-cde97c0c0df4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "subject": "={{ $json.subject }}",
+            "hours": "={{ $json.hours }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hours",
+              "displayName": "hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        -80
+      ],
+      "id": "a8bc1dad-c736-4b0c-97f9-72df86657061",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        96
+      ],
+      "id": "94dfa137-d0dc-42dd-9f46-fc42f637f015",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all();\nconst request = $(\"Code in JavaScript\").first().json;\nconst requestedSubject = (request.subject || \"\").toLowerCase();\n\nconst totals = {};\nlet all = 0;\n\nfor (const row of rows) {\n  const subject = (row.json.subject || \"\").toLowerCase();\n  const hours = Number.parseFloat(row.json.hours) || 0;\n\n  totals[subject] = (totals[subject] || 0) + hours;\n  all += hours;\n}\n\nlet msg;\n\nif (requestedSubject) {\n  msg = `📊 ${requestedSubject}: ${totals[requestedSubject] || 0}h`;\n} else {\n  msg = \"📊 Absences:\\n\";\n\n  for (const subject in totals) {\n    msg += `- ${subject}: ${totals[subject]}h\\n`;\n  }\n\n  msg += `Total: ${all}h`;\n}\n\nreturn [{ json: { msg } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ],
+      "id": "2f58508c-3441-4e79-ab48-1bf9b4db2596",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $(\"Telegram Trigger\").first().json.message.chat.id }}",
+        "text": "={{ $json.msg }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        987,
+        96
+      ],
+      "id": "bc1f7e53-9fa6-43f9-9840-93d19e312a32",
+      "name": "Send a text message"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {},
+  "nodeGroups": [],
+  "tags": []
+}
